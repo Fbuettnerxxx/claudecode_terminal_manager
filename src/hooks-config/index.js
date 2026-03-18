@@ -1,7 +1,9 @@
 const CCM_HOOK_MARKER = '_ccm';
 
+const EVENT_ARG = { PreToolUse: 'pre-tool', PostToolUse: 'post-tool', Stop: 'stop' };
+
 function buildHookEntry(hookBin, event) {
-  const eventArg = event.toLowerCase().replace('use', '');
+  const eventArg = EVENT_ARG[event] || event.toLowerCase();
   return {
     [CCM_HOOK_MARKER]: true,
     matcher: '*',

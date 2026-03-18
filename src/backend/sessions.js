@@ -8,6 +8,7 @@ class SessionStore extends EventEmitter {
     super();
     this._sessions = new Map();
     this._staleTimers = new Map();
+    this._removeTimers = new Map();
     this._staleTimeoutMs = staleTimeoutMs;
   }
 
@@ -43,7 +44,11 @@ class SessionStore extends EventEmitter {
         this._sessions.set(sessionId, updated);
         this.emit('change', updated);
         // Remove from display after REMOVE_TIMEOUT_MS
-        setTimeout(() => this._sessions.delete(sessionId), REMOVE_TIMEOUT_MS);
+        const rt = setTimeout(() => {
+          this._sessions.delete(sessionId);
+          this._removeTimers.delete(sessionId);
+        }, REMOVE_TIMEOUT_MS);
+        this._removeTimers.set(sessionId, rt);
       }
     }, this._staleTimeoutMs);
     this._staleTimers.set(sessionId, t);
@@ -61,6 +66,8 @@ class SessionStore extends EventEmitter {
   destroy() {
     for (const t of this._staleTimers.values()) clearTimeout(t);
     this._staleTimers.clear();
+    for (const t of this._removeTimers.values()) clearTimeout(t);
+    this._removeTimers.clear();
   }
 }
 
