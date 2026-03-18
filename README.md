@@ -2,159 +2,210 @@
 
 Manage all your Claude Code sessions from your phone.
 
+![session states: working, waiting, unknown](https://img.shields.io/badge/sessions-working%20%7C%20waiting%20%7C%20unknown-blue)
+![license](https://img.shields.io/badge/license-MIT-green)
+![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
+
 ## What it does
 
-CCM is a small Node.js server + PWA dashboard that gives you a real-time view of every Claude Code session running on your machine — and lets you interact with them from your phone.
+CCM is a small Node.js server + PWA dashboard that gives you a real-time view of every Claude Code session running on your Mac — and lets you send input to them from your phone.
 
-- Sessions are monitored via Claude Code hooks (`PreToolUse`, `PostToolUse`, `Stop`)
-- The dashboard updates live over WebSocket
-- Sessions started with `ccm new` are "managed": you can send input directly from the dashboard
-- Pre-existing terminal sessions appear as view-only (state visible, no input)
-- Access remotely via Tailscale (private) or Cloudflare Tunnel (public HTTPS URL)
-- Daily stats: tools run, inputs sent, active sessions
+- **Real-time state** — see which sessions are working, waiting for input, or idle
+- **Send input from your phone** — type a reply and hit send, it goes straight to the tmux window
+- **Auto-detects all Claude Code sessions** — any session you run anywhere on your machine shows up automatically
+- **Remote access** — Tailscale (private, no auth) or Cloudflare Tunnel (public HTTPS URL)
+- **Gamified dashboard** — daily stats, tool counters, session activity
 
-## Screenshots / Demo
+---
 
-Screenshots coming soon.
+## Quick Start
 
-## Features
-
-- See all Claude Code sessions in real-time (`working` / `waiting` / `unknown`)
-- Label sessions for easy identification
-- Send input directly from your phone to managed sessions
-- Gamified dashboard with daily session stats
-- Access from anywhere via Tailscale (private) or Cloudflare Tunnel (public URL)
-- Token-based auth when using Cloudflare Tunnel; no auth required on Tailscale
-
-## Requirements
-
-- Node.js 18+
-- tmux — `brew install tmux`
-- For Cloudflare Tunnel: `brew install cloudflared`
-- For Tailscale: install from [tailscale.com](https://tailscale.com/download)
-
-## Installation
+### 1. Install
 
 ```bash
 git clone https://github.com/Fbuettnerxxx/claudecode_terminal_manager.git
 cd claudecode_terminal_manager
 npm install
-npm link   # makes ccm and ccm-hook available globally
+npm link
 ```
 
-## Usage
+`npm link` makes `ccm` and `ccm-hook` available as global commands.
 
-### Start the server
+### 2. Start the server
 
 ```bash
-ccm start              # port 3000, Tailscale mode
-ccm start --port 3001  # custom port
+ccm start
 ```
 
-On start, CCM registers its hooks into `~/.claude/settings.json` and writes a PID file to `~/.ccm/server.pid`.
+This registers Claude Code hooks and starts the dashboard on port 3000.
 
-### Open the dashboard
+### 3. Open the dashboard
 
-Navigate to `http://localhost:3000` (or your Tailscale URL) in any browser.
+On your Mac: [http://localhost:3000](http://localhost:3000)
 
-### Start a new managed Claude Code session
+On your phone (same WiFi / Tailscale): `http://<your-mac-ip>:3000`
+
+### 4. Start a Claude Code session
 
 ```bash
-ccm new "my feature"              # new tmux window in current directory
-ccm new "my feature" /path/to/dir # specify working directory
+ccm new "my feature" /path/to/project
 ```
 
-This opens a new tmux window and creates a session state file in `~/.ccm/sessions/`. You can send input to this session from the dashboard.
+This opens a new tmux window, starts Claude, and the session appears on the dashboard immediately.
 
-### List sessions
+### 5. Control from your phone
+
+When Claude finishes and shows `waiting`, an input box appears on the dashboard card. Type your reply and hit send — it goes straight to the terminal.
+
+---
+
+## Requirements
+
+| Requirement | Why | Install |
+|-------------|-----|---------|
+| Node.js 18+ | runs the server | [nodejs.org](https://nodejs.org) |
+| tmux | manages terminal sessions | `brew install tmux` |
+| Tailscale *(optional)* | phone access on private network | [tailscale.com/download](https://tailscale.com/download) |
+| cloudflared *(optional)* | public HTTPS URL | `brew install cloudflared` |
+
+tmux is only required for `ccm new`. Monitoring existing Claude Code sessions works without it.
+
+---
+
+## All Commands
 
 ```bash
-ccm list
+ccm start                          # start server (port 3000)
+ccm start --port 3001              # custom port
+ccm start --tunnel cloudflare      # start + open Cloudflare Tunnel immediately
+ccm stop                           # stop server, deregister hooks
+
+ccm new "label"                    # new session in current directory
+ccm new "label" /path/to/dir       # new session in specific directory
+
+ccm list                           # list all known sessions
+
+ccm tunnel tailscale               # print Tailscale URL for phone access
+ccm tunnel cloudflare              # start Cloudflare Tunnel, print public URL + token
 ```
 
-Reads `~/.ccm/sessions/` and prints a table of all known sessions with their current state.
+---
 
-### Stop the server
+## Remote Access
 
-```bash
-ccm stop
-```
+### Tailscale (recommended — private network, no auth required)
 
-Sends SIGTERM to the server process and deregisters CCM's hooks from `~/.claude/settings.json`.
+1. Install Tailscale on your Mac and phone — [tailscale.com/download](https://tailscale.com/download)
+2. Sign in on both devices (same account)
+3. Run `ccm tunnel tailscale` — it prints your Mac's Tailscale URL
+4. Open that URL on your phone
 
-### Remote access
+No token needed. Tailscale handles authentication at the network level.
 
-#### Tailscale (recommended for personal use)
-
-1. Install Tailscale on both your development machine and phone
-2. Start the server: `ccm start`
-3. Get the Tailscale URL: `ccm tunnel tailscale`
-4. Open the printed URL on your phone
-
-Both devices must be on the same Tailscale network. No auth token is required.
-
-#### Cloudflare Tunnel (for external or shared access)
+### Cloudflare Tunnel (public HTTPS URL — use for external access)
 
 1. Install cloudflared: `brew install cloudflared`
-2. Start the server: `ccm start`
-3. Start the tunnel: `ccm tunnel cloudflare`
-4. Open the printed public URL (includes `?token=<token>`) on your phone
+2. Run `ccm tunnel cloudflare`
+3. A public `https://*.trycloudflare.com` URL is printed along with a token
+4. Open `https://<url>?token=<token>` on your phone
 
-The token is generated once and persisted in `~/.ccm/config.json`. All requests (HTTP and WebSocket) are verified against it.
+The token is generated once and saved to `~/.ccm/config.json`. All requests are verified against it.
 
-## How it works
+> **Note:** The Cloudflare URL changes every time you restart the tunnel. For a permanent URL, use a named Cloudflare Tunnel with a custom domain.
 
-### Hook registration
+---
 
-`ccm start` injects three entries into `~/.claude/settings.json` under `hooks.PreToolUse`, `hooks.PostToolUse`, and `hooks.Stop`. Each entry runs the `ccm-hook` binary, passing the event type, session ID, and tool name as arguments. `ccm stop` removes these entries.
+## How It Works
 
-### State files
+### Session monitoring
 
-`ccm-hook` writes a small JSON file to `~/.ccm/sessions/<sessionId>.json` on every hook invocation. The file contains:
+`ccm start` injects three hooks into `~/.claude/settings.json`:
 
-```json
-{
-  "sessionId": "...",
-  "state": "working | waiting | unknown",
-  "cwd": "/path/to/project",
-  "lastToolName": "Write",
-  "updatedAt": "2026-01-01T00:00:00.000Z"
-}
+```
+PreToolUse  → ccm-hook pre-tool  $CLAUDE_SESSION_ID $CLAUDE_TOOL_NAME
+PostToolUse → ccm-hook post-tool $CLAUDE_SESSION_ID $CLAUDE_TOOL_NAME
+Stop        → ccm-hook stop      $CLAUDE_SESSION_ID
 ```
 
-The hook always exits 0 so it never blocks Claude Code.
+These run automatically on every Claude Code action across all your sessions. The `ccm-hook` binary writes a small state file to `~/.ccm/sessions/<sessionId>.json`. The server watches that directory with chokidar and pushes updates to the dashboard over WebSocket.
+
+`ccm stop` removes the hooks.
 
 ### Session states
 
 | State | Meaning |
 |-------|---------|
-| `working` | Claude is actively using a tool (`PreToolUse` or `PostToolUse` fired) |
-| `waiting` | Claude finished responding, waiting for input (`Stop` fired) |
-| `unknown` | No hook activity for 60 seconds while in `working` state |
-
-Sessions in `unknown` state are removed from the in-memory store after 10 minutes.
-
-### Real-time updates
-
-The server uses chokidar to watch `~/.ccm/sessions/*.json`. When any file changes, the session store is updated and all connected WebSocket clients receive a `session_update` message. On first connect, the client receives a `snapshot` with all current sessions and today's stats.
+| `working` | Claude is actively using a tool |
+| `waiting` | Claude finished and is waiting for your input |
+| `unknown` | No activity for 60 seconds — session may have ended |
 
 ### Managed vs view-only sessions
 
-- Sessions started with `ccm new` are flagged `managed: true` in their state file. The dashboard shows an input box and `POST /api/sessions/:id/input` sends text via tmux.
-- Sessions detected only through hooks (no matching state file with `managed: true`) are view-only. The input endpoint returns 403 for these.
+| Type | How created | Dashboard input |
+|------|-------------|-----------------|
+| Managed | `ccm new` | ✅ Can send input |
+| View-only | Existing terminal sessions | 👁 State visible only |
 
-### Stats
+### Files on disk
 
-Daily stats (tools run, inputs sent, active session count) are tracked in memory and flushed to `~/.ccm/stats-YYYY-MM-DD.json` on SIGTERM/SIGINT. Stats roll over at midnight.
+```
+~/.ccm/
+  sessions/          session state files (one JSON per session)
+  stats-YYYY-MM-DD.json  daily stats (tools run, inputs sent)
+  config.json        server config (token, port)
+  server.pid         running server PID
+  hook-errors.log    hook error log (only written on errors)
+```
+
+---
+
+## Troubleshooting
+
+**Sessions don't appear on the dashboard**
+
+- Make sure the server is running: `ccm start`
+- Check that hooks are registered: look for `_ccm` entries in `~/.claude/settings.json`
+- Restart Claude Code after `ccm start` — hooks are read when Claude starts
+
+**`ccm` command not found**
+
+- Run `npm link` inside the project directory
+- Or use `node bin/ccm` directly from the project root
+
+**`ccm new` fails**
+
+- tmux must be installed: `brew install tmux`
+- You don't need to be in a tmux session — ccm creates its own session named `ccm`
+
+**Dashboard shows a session as `unknown`**
+
+- The session hasn't had any hook activity for 60 seconds
+- It may still be running — open the terminal to check
+- Sessions are removed from the dashboard after 10 minutes of no activity
+
+**Cloudflare Tunnel URL not printed**
+
+- Make sure cloudflared is installed: `brew install cloudflared`
+- The URL appears in the terminal after ~5 seconds
+- If it hangs, check your internet connection
+
+**Phone can't reach the dashboard**
+
+- On same WiFi: use your Mac's local IP (`ipconfig getifaddr en0`) + port 3000
+- For reliable phone access, use Tailscale (`ccm tunnel tailscale`)
+
+---
 
 ## Development
 
 ```bash
-npm test               # run all tests
-npm test -- --watch    # watch mode
+npm test            # run all tests (33 tests, 7 suites)
+npm test -- --watch # watch mode
 ```
 
-Tests cover: hook state writing, hooks-config registration/deregistration, session store state machine, stats tracking, auth middleware, and tmux wrapper.
+Test coverage: hook state writing, hooks-config registration/deregistration, session store state machine, stats tracking, auth middleware, tmux arg builder, server input validation, file pruning.
+
+---
 
 ## License
 
