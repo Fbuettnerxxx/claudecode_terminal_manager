@@ -69,6 +69,21 @@ html, body {
   color: var(--accent);
 }
 
+.tab-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0 0 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.tab:hover .tab-close,
+.tab.active .tab-close { opacity: 1; }
+.tab-close:hover { color: #ef4444; }
+
 #new-tab-btn {
   background: none;
   border: none;

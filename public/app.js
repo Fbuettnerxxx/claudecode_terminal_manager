@@ -57,11 +57,19 @@ function renderTabs() {
     return;
   }
   el.innerHTML = windows.map(w =>
-    `<div class="tab${w.name === activeWindow ? ' active' : ''}" onclick="selectWindow('${escapeHtml(w.name)}')">${escapeHtml(w.name)}</div>`
+    `<div class="tab${w.name === activeWindow ? ' active' : ''}">
+      <span onclick="selectWindow('${escapeHtml(w.name)}')">${escapeHtml(w.name)}</span>
+      <button class="tab-close" onclick="closeWindow('${escapeHtml(w.name)}')" title="Close">×</button>
+    </div>`
   ).join('');
   // Scroll active tab into view
   const active = el.querySelector('.tab.active');
   if (active) active.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+}
+
+function closeWindow(name) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: 'close', window: name }));
 }
 
 function selectWindow(name) {

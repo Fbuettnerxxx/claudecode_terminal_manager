@@ -7,7 +7,7 @@ const { SessionStore } = require('./sessions.js');
 const { Stats } = require('./stats.js');
 const { createWatcher } = require('./watcher.js');
 const { createTokenMiddleware, verifyWsToken } = require('./auth.js');
-const { sendInput, newWindow, capturePane, getWindows } = require('./tmux.js');
+const { sendInput, newWindow, killWindow, capturePane, getWindows } = require('./tmux.js');
 
 const SESSIONS_DIR = path.join(process.env.HOME || require('os').homedir(), '.ccm', 'sessions');
 
@@ -146,6 +146,9 @@ function createServer({ token = null } = {}) {
           if (typeof msg.text !== 'string' || msg.text.length > 10000) return;
           sendInput({ windowName: msg.window, text: msg.text });
           stats.recordInputSent();
+
+        } else if (msg.type === 'close' && msg.window) {
+          try { killWindow(msg.window); } catch (_) {}
         }
       } catch (_) {}
     });

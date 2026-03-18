@@ -73,6 +73,10 @@ function getWindows(sessionName = CCM_SESSION) {
   } catch (_) { return []; }
 }
 
+function killWindow(windowName, sessionName = CCM_SESSION) {
+  execFileSync('tmux', ['kill-window', '-t', `${sessionName}:${windowName}`]);
+}
+
 function listWindows() {
   try {
     const out = execSync(buildListWindowsCmd()).toString().trim();
@@ -86,5 +90,5 @@ function isTmuxAvailable() {
 
 module.exports = {
   buildNewWindowCmd, buildSendKeysCmd, buildListWindowsCmd,
-  newWindow, sendInput, capturePane, getWindows, listWindows, isTmuxAvailable,
+  newWindow, sendInput, killWindow, capturePane, getWindows, listWindows, isTmuxAvailable,
 };
