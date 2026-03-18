@@ -60,9 +60,9 @@ function createServer({ token = null } = {}) {
       return res.status(400).json({ error: 'cwd required' });
     }
     try {
-      if (!fs.statSync(cwd).isDirectory()) return res.status(400).json({ error: 'cwd must be a directory' });
-    } catch (_) {
-      return res.status(400).json({ error: 'directory does not exist: ' + cwd });
+      fs.mkdirSync(cwd, { recursive: true });
+    } catch (err) {
+      return res.status(400).json({ error: 'could not create directory: ' + err.message });
     }
     const sessionId = crypto.randomBytes(6).toString('hex');
     const windowName = label.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
