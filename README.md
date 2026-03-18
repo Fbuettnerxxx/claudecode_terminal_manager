@@ -1,4 +1,4 @@
-# Remmote Terminal Manager
+# Remote Terminal Manager
 
 Your Mac terminal on your phone. All your Claude Code sessions, live, from anywhere via Tailscale. Also start new sessions, make new projects or terminate unwanted ones.
 
