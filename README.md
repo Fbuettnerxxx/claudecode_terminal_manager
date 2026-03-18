@@ -157,6 +157,49 @@ Claude Code hooks (`PreToolUse`, `PostToolUse`, `Stop`) are registered in `~/.cl
 
 ---
 
+## Auto-Start on Login
+
+To have ccm always running in the background so your phone dashboard is always ready:
+
+```bash
+# Create a launchd agent (runs ccm start automatically at login)
+cat > ~/Library/LaunchAgents/com.ccm.server.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.ccm.server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/ccm</string>
+    <string>start</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+</dict>
+</plist>
+EOF
+
+launchctl load ~/Library/LaunchAgents/com.ccm.server.plist
+```
+
+To stop auto-start:
+```bash
+launchctl unload ~/Library/LaunchAgents/com.ccm.server.plist
+```
+
+> **Note:** If `ccm` is installed somewhere other than `/usr/local/bin/ccm`, find the path with `which ccm` and update the plist accordingly.
+
+Once set up, the intended daily workflow is:
+1. `ccm new "label" /path/to/project` to start any new Claude session (instead of a normal terminal tab)
+2. Open the CCM dashboard on your phone — all sessions are there, always live
+3. Switch between sessions, read output, send input — all from your phone
+
+---
+
 ## About Existing Sessions
 
 Sessions started in **Terminal.app before `ccm start`** cannot be streamed — they're not inside the `ccm` tmux session.
