@@ -7,7 +7,7 @@ const { SessionStore } = require('./sessions.js');
 const { Stats } = require('./stats.js');
 const { createWatcher } = require('./watcher.js');
 const { createTokenMiddleware, verifyWsToken } = require('./auth.js');
-const { sendInput, newWindow } = require('./tmux.js');
+const { sendInput, newWindow, capturePane, getWindows } = require('./tmux.js');
 
 const SESSIONS_DIR = path.join(process.env.HOME || require('os').homedir(), '.ccm', 'sessions');
 
@@ -37,15 +37,10 @@ function createServer({ token = null } = {}) {
   const stats = new Stats();
   pruneOldSessionFiles(SESSIONS_DIR);
 
-  // Auth middleware (no-op in Tailscale mode)
   app.use(createTokenMiddleware(token));
-  // Parse JSON bodies before routes
   app.use(express.json());
-
-  // Serve PWA
   app.use(express.static(path.join(__dirname, '../../public')));
 
-  // REST: list sessions
   app.get('/api/sessions', (req, res) => res.json(sessionStore.getAll()));
   app.get('/api/stats', (req, res) => res.json(stats.today()));
 
@@ -65,8 +60,6 @@ function createServer({ token = null } = {}) {
     }
     const windowName = label.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
     try {
-      // newWindow sets CCM_WINDOW_NAME + CCM_LABEL env vars in the tmux window;
-      // the hook picks these up and marks the real Claude session as managed
       newWindow({ windowName, cwd, label });
       res.json({ ok: true });
     } catch (err) {
@@ -74,7 +67,7 @@ function createServer({ token = null } = {}) {
     }
   });
 
-  // Send input to a managed session
+  // Send input to a session by window name (used by REST clients)
   app.post('/api/sessions/:id/input', (req, res) => {
     const { text } = req.body;
     if (typeof text !== 'string' || text.length === 0 || text.length > 10000) {
@@ -96,30 +89,73 @@ function createServer({ token = null } = {}) {
   const server = http.createServer(app);
   const wss = new WebSocket.Server({ server });
 
+  // Terminal streaming state
+  const watching = new Map();  // ws → windowName being watched
+  const paneCache = new Map(); // windowName → last captured content
+  let windowsCache = '[]';
+
+  // Poll tmux every 300ms — broadcast window list changes, stream pane content to watchers
+  const termPoll = setInterval(() => {
+    if (wss.clients.size === 0) return;
+
+    const windows = getWindows();
+    const windowsJson = JSON.stringify(windows);
+    if (windowsJson !== windowsCache) {
+      windowsCache = windowsJson;
+      const msg = JSON.stringify({ type: 'windows', windows });
+      for (const ws of wss.clients) {
+        if (ws.readyState === WebSocket.OPEN) ws.send(msg);
+      }
+    }
+
+    const watched = new Set(watching.values());
+    for (const windowName of watched) {
+      const content = capturePane(windowName);
+      if (content !== paneCache.get(windowName)) {
+        paneCache.set(windowName, content);
+        const msg = JSON.stringify({ type: 'pane', window: windowName, content });
+        for (const [ws, wn] of watching) {
+          if (wn === windowName && ws.readyState === WebSocket.OPEN) ws.send(msg);
+        }
+      }
+    }
+  }, 300);
+
   wss.on('connection', (ws, req) => {
-    // Verify token on WebSocket upgrade
     if (!verifyWsToken(token, req.url)) {
       ws.close(1008, 'Unauthorized');
       return;
     }
-    // Send current state immediately on connect
-    ws.send(JSON.stringify({ type: 'snapshot', sessions: sessionStore.getAll(), stats: stats.today() }));
 
-    // Forward session changes
-    const onChange = (session) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'session_update', session, stats: stats.today() }));
-      }
-    };
-    sessionStore.on('change', onChange);
-    ws.on('close', () => sessionStore.off('change', onChange));
+    // Send current window list immediately
+    ws.send(JSON.stringify({ type: 'windows', windows: getWindows() }));
+
+    // Handle messages from client
+    ws.on('message', (data) => {
+      try {
+        const msg = JSON.parse(data.toString());
+
+        if (msg.type === 'select' && msg.window) {
+          // Client wants to watch this window
+          watching.set(ws, msg.window);
+          const content = capturePane(msg.window);
+          paneCache.set(msg.window, content);
+          ws.send(JSON.stringify({ type: 'pane', window: msg.window, content }));
+
+        } else if (msg.type === 'input' && msg.window && msg.text) {
+          if (typeof msg.text !== 'string' || msg.text.length > 10000) return;
+          sendInput({ windowName: msg.window, text: msg.text });
+          stats.recordInputSent();
+        }
+      } catch (_) {}
+    });
+
+    ws.on('close', () => watching.delete(ws));
   });
 
-  // Watch sessions dir
+  // Watch sessions dir (hook-based metadata — still works in background)
   createWatcher(SESSIONS_DIR, sessionStore);
 
-  // Record tool use — deduplicated by sessionId+toolName+updatedAt to avoid double-counting
-  // (PreToolUse and PostToolUse both set state=working; we only count when the key changes)
   let _lastToolKey = {};
   sessionStore.on('change', s => {
     if (s.state === 'working' && s.lastToolName) {
@@ -132,11 +168,10 @@ function createServer({ token = null } = {}) {
     }
   });
 
-  // Flush stats on shutdown (use once to avoid stacking handlers on repeated createServer calls)
-  process.once('SIGTERM', () => { stats.flush(); server.close(); });
-  process.once('SIGINT', () => { stats.flush(); server.close(); });
+  process.once('SIGTERM', () => { stats.flush(); clearInterval(termPoll); server.close(); });
+  process.once('SIGINT',  () => { stats.flush(); clearInterval(termPoll); server.close(); });
 
-  return { server, sessionStore, stats };
+  return { server, sessionStore, stats, termPoll };
 }
 
 module.exports = { createServer, pruneOldSessionFiles };

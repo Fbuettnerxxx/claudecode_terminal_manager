@@ -35,8 +35,42 @@ function newWindow({ windowName, cwd, label = '', sessionName = CCM_SESSION }) {
 }
 
 function sendInput({ windowName, text, sessionName = CCM_SESSION }) {
-  // Use execFileSync to avoid shell interpretation of user-provided text
   execFileSync('tmux', ['send-keys', '-t', `${sessionName}:${windowName}`, text, 'Enter']);
+}
+
+// Strip ANSI escape sequences so pane content renders cleanly as plain text
+function stripAnsi(str) {
+  return str
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')   // CSI sequences (colors, cursor)
+    .replace(/\x1b[()][0-9A-Za-z]/g, '')      // character set switching
+    .replace(/\x1b[^[\]()]/g, '')              // other ESC sequences
+    .replace(/\r/g, '');                       // carriage returns
+}
+
+// Capture the visible content + recent history of a tmux pane
+function capturePane(windowName, sessionName = CCM_SESSION) {
+  try {
+    const raw = execFileSync(
+      'tmux', ['capture-pane', '-t', `${sessionName}:${windowName}`, '-p', '-S', '-200'],
+      { encoding: 'utf8' }
+    );
+    return stripAnsi(raw);
+  } catch (_) { return ''; }
+}
+
+// List windows in a tmux session — returns [{ name, active }]
+function getWindows(sessionName = CCM_SESSION) {
+  try {
+    const raw = execFileSync(
+      'tmux', ['list-windows', '-t', sessionName, '-F', '#{window_name}\t#{window_active}'],
+      { encoding: 'utf8' }
+    ).trim();
+    if (!raw) return [];
+    return raw.split('\n').map(line => {
+      const tab = line.lastIndexOf('\t');
+      return { name: line.slice(0, tab), active: line.slice(tab + 1) === '1' };
+    });
+  } catch (_) { return []; }
 }
 
 function listWindows() {
@@ -50,4 +84,7 @@ function isTmuxAvailable() {
   try { execSync('which tmux'); return true; } catch (_) { return false; }
 }
 
-module.exports = { buildNewWindowCmd, buildSendKeysCmd, buildListWindowsCmd, newWindow, sendInput, listWindows, isTmuxAvailable };
+module.exports = {
+  buildNewWindowCmd, buildSendKeysCmd, buildListWindowsCmd,
+  newWindow, sendInput, capturePane, getWindows, listWindows, isTmuxAvailable,
+};

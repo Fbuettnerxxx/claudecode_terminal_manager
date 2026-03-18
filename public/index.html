@@ -2,38 +2,45 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <title>CCM</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div id="status-bar">
-    <span id="conn-indicator" class="conn-dot disconnected"></span>
-    <span id="conn-label">Connecting…</span>
+  <div id="top-bar">
+    <div id="conn-dot" class="dot"></div>
+    <div id="tabs-scroll"><div id="tabs"></div></div>
+    <button id="new-tab-btn" title="New session">＋</button>
   </div>
-  <header>
-    <h1>ccm</h1>
-    <div id="header-meta"></div>
-  </header>
-  <div id="stats-row"></div>
-  <main id="session-list"></main>
 
-  <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal(event)">
+  <div id="terminal-wrap">
+    <pre id="terminal-out"></pre>
+  </div>
+
+  <div id="input-bar">
+    <textarea id="term-input" rows="1"
+      placeholder="Send input…"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+    ></textarea>
+    <button id="send-btn">↑</button>
+  </div>
+
+  <!-- New session modal -->
+  <div id="modal-overlay" class="hidden" onclick="closeModal(event)">
     <div class="modal">
       <div class="modal-header">
-        <span class="modal-title">New Session</span>
-        <button class="modal-close" onclick="hideNewSessionModal()">✕</button>
+        <span>New Session</span>
+        <button class="modal-x" onclick="hideModal()">✕</button>
       </div>
-      <div class="modal-body">
-        <label class="modal-label">Label</label>
-        <input id="modal-label" class="modal-input" placeholder="e.g. auth refactor" autocomplete="off">
-        <label class="modal-label" style="margin-top:14px">Working directory</label>
-        <input id="modal-cwd" class="modal-input" placeholder="e.g. /Users/you/newproject (created if needed)" autocomplete="off">
-        <div id="modal-error" class="modal-error hidden"></div>
-        <button id="modal-submit" class="modal-submit" onclick="submitNewSession()">Start Session →</button>
-      </div>
+      <label class="field-label">Label</label>
+      <input id="m-label" class="field-input" placeholder="e.g. auth-refactor" autocomplete="off">
+      <label class="field-label">Working directory</label>
+      <input id="m-cwd" class="field-input" placeholder="/path/to/project  (created if it doesn't exist)" autocomplete="off">
+      <div id="m-error" class="m-error hidden"></div>
+      <button id="m-submit" onclick="submitNew()">Start Session →</button>
     </div>
   </div>
 
